@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oblique Strategies</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Space+Mono:wght@400;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --cream: #f0ead6;
+    --ink:   #1a1208;
+    --gold:  #c8922a;
+    --dim:   rgba(10, 8, 4, 0.55);
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #000;
+    font-family: 'IM Fell English', Georgia, serif;
+    cursor: none;
+  }
+
+  /* ── VIDEO ── */
+  #video-bg {
+    position: fixed;
+    inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    z-index: 0;
+    opacity: 1;
+    transition: opacity 0.18s ease;
+  }
+  #video-bg.swapping { opacity: 0; }
+
+  /* ── VIGNETTE ── */
+  #vignette {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center,
+      transparent 30%,
+      rgba(0,0,0,0.55) 100%);
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  /* ── GRAIN overlay ── */
+  #grain {
+    position: fixed;
+    inset: -50%;
+    width: 200%; height: 200%;
+    z-index: 2;
+    pointer-events: none;
+    opacity: 0.045;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    animation: grain-shift 0.4s steps(1) infinite;
+  }
+  @keyframes grain-shift {
+    0%   { transform: translate(0,0); }
+    25%  { transform: translate(-3%,-4%); }
+    50%  { transform: translate(4%, 3%); }
+    75%  { transform: translate(-4%, 5%); }
+    100% { transform: translate(3%,-3%); }
+  }
+
+  /* ── CARD STAGE ── */
+  #stage {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+
+  #slot-window {
+    position: relative;
+    overflow: hidden;
+    width: 80vw;
+    max-width: 900px;
+    height: 28vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #slot-window::before,
+  #slot-window::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0;
+    height: 35%;
+    z-index: 2;
+    pointer-events: none;
+  }
+  #slot-window::before {
+    top: 0;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.85), transparent);
+  }
+  #slot-window::after {
+    bottom: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.85), transparent);
+  }
+
+  #card-text {
+    position: absolute;
+    width: 100%;
+    text-align: center;
+    color: var(--cream);
+    font-size: clamp(1.8rem, 4.5vw, 4rem);
+    font-style: italic;
+    line-height: 1.25;
+    letter-spacing: 0.01em;
+    text-shadow:
+      0 2px 30px rgba(0,0,0,0.9),
+      0 0 80px rgba(0,0,0,0.6);
+    will-change: transform, opacity;
+    padding: 0 2rem;
+  }
+
+  .rule {
+    width: 60vw;
+    max-width: 600px;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--gold), transparent);
+    opacity: 0;
+    transition: opacity 0.6s ease;
+    margin: 1.4rem 0;
+  }
+  .rule.visible { opacity: 0.7; }
+
+  #index-badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.15em;
+    color: var(--gold);
+    opacity: 0;
+    transition: opacity 0.6s ease;
+    text-transform: uppercase;
+  }
+  #index-badge.visible { opacity: 0.8; }
+
+  /* ── STATUS WS ── */
+  #ws-status {
+    position: fixed;
+    top: 1.2rem;
+    right: 1.4rem;
+    z-index: 30;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    opacity: 0.5;
+    pointer-events: none;
+  }
+  #ws-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #555;
+    transition: background 0.4s;
+  }
+  #ws-status.connected    #ws-dot { background: #7ecb7e; }
+  #ws-status.disconnected #ws-dot { background: #cb7e7e; }
+  #ws-label { color: var(--cream); }
+
+  /* ── HINT ── */
+  #hint {
+    position: fixed;
+    bottom: 2.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    color: rgba(240,234,214,0.35);
+    text-transform: uppercase;
+    transition: opacity 0.4s;
+  }
+  #hint.hide { opacity: 0; }
+
+  /* ── FLASH overlay ── */
+  #flash {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: var(--cream);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.08s ease;
+  }
+  #flash.on { opacity: 0.12; }
+
+  #cursor {
+    position: fixed;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--gold);
+    pointer-events: none;
+    z-index: 999;
+    transform: translate(-50%,-50%);
+    mix-blend-mode: difference;
+    transition: transform 0.1s;
+  }
+</style>
+</head>
+<body>
+
+<video id="video-bg" autoplay muted loop playsinline></video>
+<div id="vignette"></div>
+<div id="grain"></div>
+<div id="flash"></div>
+
+<div id="ws-status disconnected">
+  <div id="ws-dot"></div>
+  <span id="ws-label">ws</span>
+</div>
+
+<div id="stage">
+  <div id="index-badge"></div>
+  <div class="rule" id="rule-top"></div>
+  <div id="slot-window">
+    <div id="card-text">— — —</div>
+  </div>
+  <div class="rule" id="rule-bot"></div>
+</div>
+
+<div id="hint">[ spacja ] aby losować</div>
+<div id="cursor"></div>
+
+<script>
+// ─── CONFIG ────────────────────────────────────────────────
+const SEGMENTS_DIR   = 'segments/';
+const CARDS_FILE     = 'card_items.json';
+const TOTAL_SEGMENTS = 16;
+const WS_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
+const CARDS_FILE     = 'card_items.json';
+const TOTAL_SEGMENTS = 16;    // ← liczba plików mp4 (niezależna od kart)
+const WS_URL         = 'ws://localhost:8765';
+
+// Spin timing (ms)
+const SPIN_FAST_INTERVAL  = 55;
+const SPIN_SLOW_INTERVAL  = 320;
+const FAST_TICKS          = 18;
+const DECEL_STEPS         = 14;
+
+// ─── STATE ─────────────────────────────────────────────────
+let cards        = [];
+let spinning     = false;
+let currentIndex = null;
+let ws           = null;
+
+// ─── ELEMENTS ──────────────────────────────────────────────
+const videoBg    = document.getElementById('video-bg');
+const cardText   = document.getElementById('card-text');
+const indexBadge = document.getElementById('index-badge');
+const ruleTop    = document.getElementById('rule-top');
+const ruleBot    = document.getElementById('rule-bot');
+const hint       = document.getElementById('hint');
+const flash      = document.getElementById('flash');
+const cursor     = document.getElementById('cursor');
+const wsStatus   = document.getElementById('ws-status');
+const wsDot      = document.getElementById('ws-dot');
+
+// ─── CURSOR ────────────────────────────────────────────────
+document.addEventListener('mousemove', e => {
+  cursor.style.left = e.clientX + 'px';
+  cursor.style.top  = e.clientY + 'px';
+});
+
+// ─── WEBSOCKET ─────────────────────────────────────────────
+function wsSetStatus(connected) {
+  wsStatus.className = connected ? 'connected' : 'disconnected';
+}
+
+function wsConnect() {
+  ws = new WebSocket(WS_URL);
+
+  ws.addEventListener('open', () => {
+    wsSetStatus(true);
+    console.log('[WS] połączono');
+  });
+
+  ws.addEventListener('message', e => {
+    let msg;
+    try { msg = JSON.parse(e.data); } catch { return; }
+
+    if (msg.action === 'spin') {
+      spin();
+    }
+  });
+
+  ws.addEventListener('close', () => {
+    wsSetStatus(false);
+    console.log('[WS] rozłączono, ponawiam za 2s…');
+    setTimeout(wsConnect, 2000);
+  });
+
+  ws.addEventListener('error', () => {
+    ws.close();
+  });
+}
+
+function wsSend(data) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(data));
+  }
+}
+
+// ─── LOAD CARDS ────────────────────────────────────────────
+async function loadCards() {
+  try {
+    const r = await fetch(CARDS_FILE + '?v=' + Date.now());
+    cards = await r.json();
+  } catch(e) {
+    cards = Array.from({length: 10}, (_, i) => ({
+      index: i,
+      title: `Card ${i}`
+    }));
+  }
+  // Losuj film niezależnie od kart
+  setVideo(randomSegment(), false);
+}
+
+// ─── VIDEO ─────────────────────────────────────────────────
+
+// Losowy indeks segmentu wideo (0..TOTAL_SEGMENTS-1), niezależny od kart
+function randomSegment() {
+  return Math.floor(Math.random() * TOTAL_SEGMENTS);
+}
+
+function segmentPath(idx) {
+  return `${SEGMENTS_DIR}segment_${String(idx).padStart(3,'0')}.mp4`;
+}
+
+function setVideo(segIdx, animate = true) {
+  if (!animate) {
+    videoBg.src = segmentPath(segIdx);
+    videoBg.play().catch(()=>{});
+    return;
+  }
+  videoBg.classList.add('swapping');
+  setTimeout(() => {
+    videoBg.src = segmentPath(segIdx);
+    videoBg.play().catch(()=>{});
+    videoBg.classList.remove('swapping');
+  }, 180);
+}
+
+// ─── TEXT ANIMATION ────────────────────────────────────────
+function setCardDisplay(card, final = false) {
+  cardText.style.transition = 'none';
+  cardText.style.opacity    = '1';
+  cardText.textContent      = card.title;
+
+  if (final) {
+    flash.classList.add('on');
+    setTimeout(() => flash.classList.remove('on'), 120);
+
+    indexBadge.textContent = `#${String(card.index + 1).padStart(3,'0')}`;
+    indexBadge.classList.add('visible');
+    ruleTop.classList.add('visible');
+    ruleBot.classList.add('visible');
+  }
+}
+
+function hideDecorations() {
+  indexBadge.classList.remove('visible');
+  ruleTop.classList.remove('visible');
+  ruleBot.classList.remove('visible');
+}
+
+// ─── SPIN ──────────────────────────────────────────────────
+function easeOut(t) {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+function spin() {
+  if (spinning || cards.length === 0) return;
+  spinning = true;
+  hint.classList.add('hide');
+  hideDecorations();
+
+  const winnerIdx    = Math.floor(Math.random() * cards.length);
+  const winner       = cards[winnerIdx];
+  const winnerSegIdx = randomSegment();  // ← film losowany osobno
+
+  const intervals = [];
+  for (let i = 0; i < FAST_TICKS; i++) {
+    intervals.push(SPIN_FAST_INTERVAL);
+  }
+  for (let i = 0; i < DECEL_STEPS; i++) {
+    const t   = (i + 1) / DECEL_STEPS;
+    const val = SPIN_FAST_INTERVAL + (SPIN_SLOW_INTERVAL - SPIN_FAST_INTERVAL) * easeOut(t);
+    intervals.push(Math.round(val));
+  }
+
+  const totalTicks = intervals.length;
+  let tick = 0;
+
+  function doTick() {
+    const isLast     = tick === totalTicks - 1;
+    const displayCard = isLast
+      ? winner
+      : cards[Math.floor(Math.random() * cards.length)];
+
+    setCardDisplay(displayCard, isLast);
+
+    if (isLast || tick % 3 === 0) {
+      // Podczas spinu: losowy film; na końcu: wylosowany wcześniej film dla zwycięzcy
+      const segIdx = isLast ? winnerSegIdx : randomSegment();
+      setVideo(segIdx, !isLast);
+      if (isLast) setVideo(segIdx, false);
+    }
+
+    if (isLast) {
+      currentIndex = winnerIdx;
+      spinning = false;
+      hint.classList.remove('hide');
+
+      wsSend({ action: 'result', index: winner.index, segment: winnerSegIdx });
+      return;
+    }
+
+    tick++;
+    setTimeout(doTick, intervals[tick]);
+  }
+
+  doTick();
+}
+
+// ─── INPUT ─────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); spin(); }
+  if (e.code === 'KeyK')  { e.preventDefault(); spin(); }
+});
+
+document.addEventListener('click', () => spin());
+
+// ─── INIT ──────────────────────────────────────────────────
+loadCards();
+wsConnect();
+setInterval(() => spin(), 47_000);
+</script>
+</body>
+</html>
