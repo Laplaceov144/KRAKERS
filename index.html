@@ -19,7 +19,7 @@
     width: 100%; height: 100%;
     overflow: hidden;
     background: #000;
-    font-family: Verdana, Geneva, Tahoma, sans-serif;
+    font-family: 'IM Fell English', Georgia, serif;
     cursor: none;
   }
 
@@ -377,6 +377,9 @@ document.addEventListener('keydown', e => {
 });
 
 // ─── WYBÓR FOLDERU ─────────────────────────────────────────
+let localCardFile = null;   // File z dysku, jeśli znaleziony
+let localCSSFile  = null;   // File z dysku, jeśli znaleziony
+
 btnPick.addEventListener('click', async () => {
   setupError.style.display = 'none';
 
@@ -385,13 +388,21 @@ btnPick.addEventListener('click', async () => {
     const files = [];
 
     for await (const [name, handle] of dirHandle.entries()) {
-      if (handle.kind === 'file' && /^segment_\d+\.mp4$/i.test(name)) {
+      if (handle.kind !== 'file') continue;
+
+      if (/^segment_\d+\.mp4$/i.test(name)) {
         const file = await handle.getFile();
         files.push({ name, url: URL.createObjectURL(file) });
+      } else if (name === 'card_items.json') {
+        localCardFile = await handle.getFile();
+        console.log('Znaleziono lokalny card_items.json');
+      } else if (name === 'style.css') {
+        localCSSFile = await handle.getFile();
+        console.log('Znaleziono lokalny style.css');
       }
     }
 
-    // Sortuj numerycznie po numerze w nazwie
+    // Sortuj filmy numerycznie
     files.sort((a, b) => {
       const na = parseInt(a.name.match(/\d+/)[0]);
       const nb = parseInt(b.name.match(/\d+/)[0]);
@@ -407,10 +418,13 @@ btnPick.addEventListener('click', async () => {
     segmentFiles = files;
     console.log(`Załadowano ${segmentFiles.length} filmów z dysku.`);
 
+    // Wstrzyknij lokalny CSS jeśli dostępny
+    if (localCSSFile) await applyLocalCSS(localCSSFile);
+
     // Wejdź w fullscreen — możliwe bo jesteśmy w obsłudze kliknięcia
     await enterFullscreen();
 
-    // Ukryj ekran startowy i odppal aplikację
+    // Ukryj ekran startowy i odpal aplikację
     setupScreen.style.display = 'none';
     await loadCards();
     wsConnect();
@@ -425,11 +439,38 @@ btnPick.addEventListener('click', async () => {
   }
 });
 
+// ─── LOKALNY CSS ───────────────────────────────────────────
+async function applyLocalCSS(file) {
+  try {
+    const text = await file.text();
+    document.getElementById('local-style')?.remove();
+    const style = document.createElement('style');
+    style.id = 'local-style';
+    style.textContent = text;
+    document.head.appendChild(style);
+    console.log('Zastosowano lokalny style.css');
+  } catch(e) {
+    console.warn('Nie udało się załadować style.css:', e);
+  }
+}
+
 // ─── LOAD CARDS ────────────────────────────────────────────
 async function loadCards() {
+  // Najpierw lokalny plik, potem fallback na serwer
+  if (localCardFile) {
+    try {
+      const text = await localCardFile.text();
+      cards = JSON.parse(text);
+      console.log(`Załadowano ${cards.length} kart z lokalnego pliku.`);
+      return;
+    } catch(e) {
+      console.warn('Błąd lokalnego card_items.json, fallback na serwer:', e);
+    }
+  }
   try {
     const r = await fetch(CARDS_FILE + '?v=' + Date.now());
     cards = await r.json();
+    console.log(`Załadowano ${cards.length} kart z serwera.`);
   } catch(e) {
     cards = Array.from({length: 10}, (_, i) => ({ index: i, title: `Card ${i}` }));
   }
