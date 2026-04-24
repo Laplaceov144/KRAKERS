@@ -13,7 +13,6 @@
     --cream: #f0ead6;
     --ink:   #1a1208;
     --gold:  #c8922a;
-    --dim:   rgba(10, 8, 4, 0.55);
   }
 
   html, body {
@@ -47,7 +46,7 @@
     pointer-events: none;
   }
 
-  /* ── GRAIN overlay ── */
+  /* ── GRAIN ── */
   #grain {
     position: fixed;
     inset: -50%;
@@ -64,6 +63,56 @@
     50%  { transform: translate(4%, 3%); }
     75%  { transform: translate(-4%, 5%); }
     100% { transform: translate(3%,-3%); }
+  }
+
+  /* ── EKRAN STARTOWY ── */
+  #setup-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2rem;
+  }
+  #setup-screen h1 {
+    font-family: 'IM Fell English', Georgia, serif;
+    font-style: italic;
+    color: var(--cream);
+    font-size: clamp(1.4rem, 3vw, 2.2rem);
+    letter-spacing: 0.05em;
+    opacity: 0.8;
+  }
+  #setup-screen p {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    color: rgba(240,234,214,0.4);
+    letter-spacing: 0.15em;
+    text-align: center;
+    line-height: 1.8;
+    text-transform: uppercase;
+  }
+  .setup-btn {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink);
+    background: var(--gold);
+    border: none;
+    padding: 0.9rem 2.2rem;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .setup-btn:hover { opacity: 0.8; }
+  #setup-error {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: #cb7e7e;
+    letter-spacing: 0.1em;
+    display: none;
   }
 
   /* ── CARD STAGE ── */
@@ -88,7 +137,6 @@
     align-items: center;
     justify-content: center;
   }
-
   #slot-window::before,
   #slot-window::after {
     content: '';
@@ -119,7 +167,6 @@
     text-shadow:
       0 2px 30px rgba(0,0,0,0.9),
       0 0 80px rgba(0,0,0,0.6);
-    will-change: transform, opacity;
     padding: 0 2rem;
   }
 
@@ -145,7 +192,7 @@
   }
   #index-badge.visible { opacity: 0.8; }
 
-  /* ── STATUS WS ── */
+  /* ── WS STATUS ── */
   #ws-status {
     position: fixed;
     top: 1.2rem;
@@ -184,10 +231,11 @@
     color: rgba(240,234,214,0.35);
     text-transform: uppercase;
     transition: opacity 0.4s;
+    white-space: nowrap;
   }
   #hint.hide { opacity: 0; }
 
-  /* ── FLASH overlay ── */
+  /* ── FLASH ── */
   #flash {
     position: fixed;
     inset: 0;
@@ -199,6 +247,7 @@
   }
   #flash.on { opacity: 0.12; }
 
+  /* ── CURSOR ── */
   #cursor {
     position: fixed;
     width: 10px; height: 10px;
@@ -219,7 +268,18 @@
 <div id="grain"></div>
 <div id="flash"></div>
 
-<div id="ws-status disconnected">
+<!-- Ekran startowy -->
+<div id="setup-screen">
+  <h1>Oblique Strategies</h1>
+  <p>
+    Wskaż lokalny folder z plikami wideo (segments/)<br>
+    Filmy ładują się bezpośrednio z dysku — nie przez sieć.
+  </p>
+  <button class="setup-btn" id="btn-pick">Wybierz folder z filmami</button>
+  <div id="setup-error"></div>
+</div>
+
+<div id="ws-status" class="disconnected">
   <div id="ws-dot"></div>
   <span id="ws-label">ws</span>
 </div>
@@ -238,37 +298,33 @@
 
 <script>
 // ─── CONFIG ────────────────────────────────────────────────
-const SEGMENTS_DIR   = 'segments/';
-const CARDS_FILE     = 'card_items.json';
-const TOTAL_SEGMENTS = 16;
-const WS_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
-const CARDS_FILE     = 'card_items.json';
-const TOTAL_SEGMENTS = 16;    // ← liczba plików mp4 (niezależna od kart)
-const WS_URL         = 'ws://localhost:8765';
-
-// Spin timing (ms)
-const SPIN_FAST_INTERVAL  = 55;
-const SPIN_SLOW_INTERVAL  = 320;
-const FAST_TICKS          = 18;
-const DECEL_STEPS         = 14;
+const CARDS_FILE         = 'card_items.json';
+const WS_URL             = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
+const SPIN_FAST_INTERVAL = 55;
+const SPIN_SLOW_INTERVAL = 320;
+const FAST_TICKS         = 18;
+const DECEL_STEPS        = 14;
 
 // ─── STATE ─────────────────────────────────────────────────
 let cards        = [];
+let segmentFiles = [];  // { name, url } — object URLs z lokalnych plików
 let spinning     = false;
 let currentIndex = null;
 let ws           = null;
 
 // ─── ELEMENTS ──────────────────────────────────────────────
-const videoBg    = document.getElementById('video-bg');
-const cardText   = document.getElementById('card-text');
-const indexBadge = document.getElementById('index-badge');
-const ruleTop    = document.getElementById('rule-top');
-const ruleBot    = document.getElementById('rule-bot');
-const hint       = document.getElementById('hint');
-const flash      = document.getElementById('flash');
-const cursor     = document.getElementById('cursor');
-const wsStatus   = document.getElementById('ws-status');
-const wsDot      = document.getElementById('ws-dot');
+const videoBg     = document.getElementById('video-bg');
+const cardText    = document.getElementById('card-text');
+const indexBadge  = document.getElementById('index-badge');
+const ruleTop     = document.getElementById('rule-top');
+const ruleBot     = document.getElementById('rule-bot');
+const hint        = document.getElementById('hint');
+const flash       = document.getElementById('flash');
+const cursor      = document.getElementById('cursor');
+const wsStatus    = document.getElementById('ws-status');
+const setupScreen = document.getElementById('setup-screen');
+const btnPick     = document.getElementById('btn-pick');
+const setupError  = document.getElementById('setup-error');
 
 // ─── CURSOR ────────────────────────────────────────────────
 document.addEventListener('mousemove', e => {
@@ -282,38 +338,88 @@ function wsSetStatus(connected) {
 }
 
 function wsConnect() {
-  ws = new WebSocket(WS_URL);
+  try { ws = new WebSocket(WS_URL); } catch(e) { return; }
 
-  ws.addEventListener('open', () => {
-    wsSetStatus(true);
-    console.log('[WS] połączono');
-  });
-
+  ws.addEventListener('open',    () => wsSetStatus(true));
   ws.addEventListener('message', e => {
-    let msg;
-    try { msg = JSON.parse(e.data); } catch { return; }
-
-    if (msg.action === 'spin') {
-      spin();
-    }
+    let msg; try { msg = JSON.parse(e.data); } catch { return; }
+    if (msg.action === 'spin') spin();
   });
-
-  ws.addEventListener('close', () => {
-    wsSetStatus(false);
-    console.log('[WS] rozłączono, ponawiam za 2s…');
-    setTimeout(wsConnect, 2000);
-  });
-
-  ws.addEventListener('error', () => {
-    ws.close();
-  });
+  ws.addEventListener('close',   () => { wsSetStatus(false); setTimeout(wsConnect, 3000); });
+  ws.addEventListener('error',   () => ws.close());
 }
 
 function wsSend(data) {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(data));
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
+}
+
+// ─── FULLSCREEN ────────────────────────────────────────────
+async function enterFullscreen() {
+  try {
+    await document.documentElement.requestFullscreen();
+  } catch(e) {
+    console.warn('Fullscreen niedostępny:', e.message);
   }
 }
+
+document.addEventListener('keydown', e => {
+  if (e.code === 'KeyF') {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(()=>{});
+    } else {
+      document.exitFullscreen().catch(()=>{});
+    }
+  }
+});
+
+// ─── WYBÓR FOLDERU ─────────────────────────────────────────
+btnPick.addEventListener('click', async () => {
+  setupError.style.display = 'none';
+
+  try {
+    const dirHandle = await window.showDirectoryPicker({ mode: 'read' });
+    const files = [];
+
+    for await (const [name, handle] of dirHandle.entries()) {
+      if (handle.kind === 'file' && /^segment_\d+\.mp4$/i.test(name)) {
+        const file = await handle.getFile();
+        files.push({ name, url: URL.createObjectURL(file) });
+      }
+    }
+
+    // Sortuj numerycznie po numerze w nazwie
+    files.sort((a, b) => {
+      const na = parseInt(a.name.match(/\d+/)[0]);
+      const nb = parseInt(b.name.match(/\d+/)[0]);
+      return na - nb;
+    });
+
+    if (files.length === 0) {
+      setupError.textContent = 'Nie znaleziono plików segment_*.mp4 w wybranym folderze.';
+      setupError.style.display = 'block';
+      return;
+    }
+
+    segmentFiles = files;
+    console.log(`Załadowano ${segmentFiles.length} filmów z dysku.`);
+
+    // Wejdź w fullscreen — możliwe bo jesteśmy w obsłudze kliknięcia
+    await enterFullscreen();
+
+    // Ukryj ekran startowy i odppal aplikację
+    setupScreen.style.display = 'none';
+    await loadCards();
+    wsConnect();
+    setVideo(randomSegment(), false);
+    setInterval(() => spin(), 47_000);
+
+  } catch(err) {
+    if (err.name !== 'AbortError') {
+      setupError.textContent = 'Błąd: ' + err.message;
+      setupError.style.display = 'block';
+    }
+  }
+});
 
 // ─── LOAD CARDS ────────────────────────────────────────────
 async function loadCards() {
@@ -321,35 +427,27 @@ async function loadCards() {
     const r = await fetch(CARDS_FILE + '?v=' + Date.now());
     cards = await r.json();
   } catch(e) {
-    cards = Array.from({length: 10}, (_, i) => ({
-      index: i,
-      title: `Card ${i}`
-    }));
+    cards = Array.from({length: 10}, (_, i) => ({ index: i, title: `Card ${i}` }));
   }
-  // Losuj film niezależnie od kart
-  setVideo(randomSegment(), false);
 }
 
 // ─── VIDEO ─────────────────────────────────────────────────
-
-// Losowy indeks segmentu wideo (0..TOTAL_SEGMENTS-1), niezależny od kart
 function randomSegment() {
-  return Math.floor(Math.random() * TOTAL_SEGMENTS);
+  return Math.floor(Math.random() * segmentFiles.length);
 }
 
-function segmentPath(idx) {
-  return `${SEGMENTS_DIR}segment_${String(idx).padStart(3,'0')}.mp4`;
-}
+function setVideo(idx, animate = true) {
+  const url = segmentFiles[idx]?.url;
+  if (!url) return;
 
-function setVideo(segIdx, animate = true) {
   if (!animate) {
-    videoBg.src = segmentPath(segIdx);
+    videoBg.src = url;
     videoBg.play().catch(()=>{});
     return;
   }
   videoBg.classList.add('swapping');
   setTimeout(() => {
-    videoBg.src = segmentPath(segIdx);
+    videoBg.src = url;
     videoBg.play().catch(()=>{});
     videoBg.classList.remove('swapping');
   }, 180);
@@ -364,7 +462,6 @@ function setCardDisplay(card, final = false) {
   if (final) {
     flash.classList.add('on');
     setTimeout(() => flash.classList.remove('on'), 120);
-
     indexBadge.textContent = `#${String(card.index + 1).padStart(3,'0')}`;
     indexBadge.classList.add('visible');
     ruleTop.classList.add('visible');
@@ -379,24 +476,20 @@ function hideDecorations() {
 }
 
 // ─── SPIN ──────────────────────────────────────────────────
-function easeOut(t) {
-  return 1 - Math.pow(1 - t, 3);
-}
+function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
 
 function spin() {
-  if (spinning || cards.length === 0) return;
+  if (spinning || cards.length === 0 || segmentFiles.length === 0) return;
   spinning = true;
   hint.classList.add('hide');
   hideDecorations();
 
   const winnerIdx    = Math.floor(Math.random() * cards.length);
   const winner       = cards[winnerIdx];
-  const winnerSegIdx = randomSegment();  // ← film losowany osobno
+  const winnerSegIdx = randomSegment();
 
   const intervals = [];
-  for (let i = 0; i < FAST_TICKS; i++) {
-    intervals.push(SPIN_FAST_INTERVAL);
-  }
+  for (let i = 0; i < FAST_TICKS; i++) intervals.push(SPIN_FAST_INTERVAL);
   for (let i = 0; i < DECEL_STEPS; i++) {
     const t   = (i + 1) / DECEL_STEPS;
     const val = SPIN_FAST_INTERVAL + (SPIN_SLOW_INTERVAL - SPIN_FAST_INTERVAL) * easeOut(t);
@@ -407,15 +500,12 @@ function spin() {
   let tick = 0;
 
   function doTick() {
-    const isLast     = tick === totalTicks - 1;
-    const displayCard = isLast
-      ? winner
-      : cards[Math.floor(Math.random() * cards.length)];
+    const isLast      = tick === totalTicks - 1;
+    const displayCard = isLast ? winner : cards[Math.floor(Math.random() * cards.length)];
 
     setCardDisplay(displayCard, isLast);
 
     if (isLast || tick % 3 === 0) {
-      // Podczas spinu: losowy film; na końcu: wylosowany wcześniej film dla zwycięzcy
       const segIdx = isLast ? winnerSegIdx : randomSegment();
       setVideo(segIdx, !isLast);
       if (isLast) setVideo(segIdx, false);
@@ -423,9 +513,8 @@ function spin() {
 
     if (isLast) {
       currentIndex = winnerIdx;
-      spinning = false;
+      spinning     = false;
       hint.classList.remove('hide');
-
       wsSend({ action: 'result', index: winner.index, segment: winnerSegIdx });
       return;
     }
@@ -443,12 +532,10 @@ document.addEventListener('keydown', e => {
   if (e.code === 'KeyK')  { e.preventDefault(); spin(); }
 });
 
-document.addEventListener('click', () => spin());
-
-// ─── INIT ──────────────────────────────────────────────────
-loadCards();
-wsConnect();
-setInterval(() => spin(), 47_000);
+document.addEventListener('click', e => {
+  if (setupScreen.style.display !== 'none') return;  // ignoruj klik na setup
+  spin();
+});
 </script>
 </body>
 </html>
