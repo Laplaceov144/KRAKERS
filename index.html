@@ -13,14 +13,13 @@
     --cream: #f0ead6;
     --ink:   #1a1208;
     --gold:  #c8922a;
-    --dim:   rgba(10, 8, 4, 0.55);
   }
 
   html, body {
     width: 100%; height: 100%;
     overflow: hidden;
     background: #000;
-    font-family: 'IM Fell English', Georgia, serif;
+    font-family: Verdana, Geneva, Tahoma, sans-serif;
     cursor: none;
   }
 
@@ -47,7 +46,7 @@
     pointer-events: none;
   }
 
-  /* ── GRAIN overlay ── */
+  /* ── GRAIN ── */
   #grain {
     position: fixed;
     inset: -50%;
@@ -64,6 +63,56 @@
     50%  { transform: translate(4%, 3%); }
     75%  { transform: translate(-4%, 5%); }
     100% { transform: translate(3%,-3%); }
+  }
+
+  /* ── EKRAN STARTOWY ── */
+  #setup-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2rem;
+  }
+  #setup-screen h1 {
+    font-family: 'IM Fell English', Georgia, serif;
+    font-style: italic;
+    color: var(--cream);
+    font-size: clamp(1.4rem, 3vw, 2.2rem);
+    letter-spacing: 0.05em;
+    opacity: 0.8;
+  }
+  #setup-screen p {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    color: rgba(240,234,214,0.4);
+    letter-spacing: 0.15em;
+    text-align: center;
+    line-height: 1.8;
+    text-transform: uppercase;
+  }
+  .setup-btn {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink);
+    background: var(--gold);
+    border: none;
+    padding: 0.9rem 2.2rem;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .setup-btn:hover { opacity: 0.8; }
+  #setup-error {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: #cb7e7e;
+    letter-spacing: 0.1em;
+    display: none;
   }
 
   /* ── CARD STAGE ── */
@@ -88,7 +137,6 @@
     align-items: center;
     justify-content: center;
   }
-
   #slot-window::before,
   #slot-window::after {
     content: '';
@@ -109,10 +157,13 @@
 
   #card-text {
     position: absolute;
+    height: 100%;
+    margin-top: 20vh;
     width: 100%;
     text-align: center;
     color: var(--cream);
-    font-size: clamp(1.8rem, 4.5vw, 4rem);
+    /* font-size: clamp(1.8rem, 4.5vw, 4rem); */
+    font-size: 1vw;
     font-style: italic;
     line-height: 1.25;
     letter-spacing: 0.01em;
@@ -145,7 +196,7 @@
   }
   #index-badge.visible { opacity: 0.8; }
 
-  /* ── STATUS WS ── */
+  /* ── WS STATUS ── */
   #ws-status {
     position: fixed;
     top: 1.2rem;
@@ -184,10 +235,11 @@
     color: rgba(240,234,214,0.35);
     text-transform: uppercase;
     transition: opacity 0.4s;
+    white-space: nowrap;
   }
   #hint.hide { opacity: 0; }
 
-  /* ── FLASH overlay ── */
+  /* ── FLASH ── */
   #flash {
     position: fixed;
     inset: 0;
@@ -199,6 +251,7 @@
   }
   #flash.on { opacity: 0.12; }
 
+  /* ── CURSOR ── */
   #cursor {
     position: fixed;
     width: 10px; height: 10px;
